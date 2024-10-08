@@ -1,173 +1,113 @@
 # Import libraries
 import streamlit as st
 import pandas as pd
-import altair as alt
 import plotly.express as px
-df= pd.read_csv(r'Divyank End Term Final Project Import Export.csv')
-my_sample=df.sample(n=3001, random_state=55010)
+import altair as alt
+
+# Load data
+df = pd.read_csv('Divyank End Term Final Project Import Export.csv')
+df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
 
 # Page configuration
 st.set_page_config(
     page_title="Import-Export Dashboard",
     page_icon="📦",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# Page background color and custom CSS
-page_bg_color = """
-    <style>
-    body {
-        background-color: #e8f5e9;
-    }
-    .metric-container {
-        display: flex;
-        justify-content: space-between;
-    }
-    .metric-box {
-        padding: 15px;
-        margin: 5px;
-        border-radius: 10px;
-        background-color: #ffffff;
-        box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
-        text-align: center;
-    }
-    .metric-title {
-        font-size: 16px;
-        font-weight: bold;
-        color: #333333;
-    }
-    .metric-value {
-        font-size: 20px;
-        color: #007bff;
-    }
-    .metric-delta {
-        color: #ff6b6b;
-    }
-    </style>
-"""
-st.markdown(page_bg_color, unsafe_allow_html=True)
+# Sidebar Styling and Options
+st.sidebar.title('📦 Import-Export Dashboard')
+st.sidebar.write("Choose your preferences below:")
 
-# Load data
-df = pd.read_csv('Divyank End Term Final Project Import Export.csv')  # Adjust the file path accordingly
+# Theme selector
+theme = st.sidebar.selectbox('Choose a Theme', ['Light', 'Dark'])
+if theme == 'Dark':
+    st.markdown("<style>body {background-color: #121212; color: white;}</style>", unsafe_allow_html=True)
 
-# Sidebar
-with st.sidebar:
-    st.title('📦 Import-Export Dashboard')
+# Year and Country Filters
+year_list = sorted(df['Date'].dt.year.dropna().unique(), reverse=True)
+selected_year = st.sidebar.selectbox('Select Year', year_list)
 
-# Filter by year
-df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-year_list = sorted(df['Date'].dt.year.unique(), reverse=True)
-selected_year = st.sidebar.selectbox('Select a year', year_list)
+country_list = df['Country'].dropna().unique()
+selected_countries = st.sidebar.multiselect('Select Countries', country_list, default=country_list[:5])
 
-# Filter data based on the selected year
-df_selected_year = df[df['Date'].dt.year == selected_year]
+df_filtered = df[(df['Date'].dt.year == selected_year) & (df['Country'].isin(selected_countries))]
 
-# Multi-select for country
-country_list = df['Country'].unique()
-selected_countries = st.multiselect('Select country(s)', country_list, default=country_list[:3])
-
-if selected_countries:
-    df_selected_year = df_selected_year[df_selected_year['Country'].isin(selected_countries)]
-
-# Select color theme
-color_theme_list = ['blues', 'reds', 'greens', 'turbo', 'viridis']
-selected_color_theme = st.sidebar.selectbox('Select a color theme', color_theme_list)
-
-# Helper Functions
-def format_value(val):
-    return f"${val / 1e6:.1f}M" if val > 1e6 else f"${val / 1e3:.1f}K"
-
-def calculate_transaction_difference(input_df, input_year):
-    selected_year_data = input_df[input_df['Date'].dt.year == input_year].reset_index()
-    previous_year_data = input_df[input_df['Date'].dt.year == input_year - 1].reset_index()
-    selected_year_data['value_difference'] = selected_year_data.Value.sub(previous_year_data.Value, fill_value=0)
-    return pd.concat([selected_year_data.Country, selected_year_data.Value, selected_year_data.value_difference], axis=1).sort_values(by="value_difference", ascending=False)
-
-# Dashboard Main Panel
-st.markdown("<h1 style='text-align: center; color: #004d40;'>📦 Import-Export Transactions Dashboard</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #004d40;'>Comprehensive analysis of global trade flows by year and country</h4>", unsafe_allow_html=True)
-st.markdown("<hr>", unsafe_allow_html=True)
-
-# Display key metrics in card layout
-df_transaction_diff_sorted = calculate_transaction_difference(df, selected_year)
-
-first_country = df_transaction_diff_sorted.Country.iloc[0] if selected_year > df['Date'].dt.year.min() else '-'
-first_country_value = format_value(df_transaction_diff_sorted.Value.iloc[0])
-first_country_delta = format_value(df_transaction_diff_sorted.value_difference.iloc[0]) if selected_year > df['Date'].dt.year.min() else '-'
-
-last_country = df_transaction_diff_sorted.Country.iloc[-1] if selected_year > df['Date'].dt.year.min() else '-'
-last_country_value = format_value(df_transaction_diff_sorted.Value.iloc[-1])
-last_country_delta = format_value(df_transaction_diff_sorted.value_difference.iloc[-1]) if selected_year > df['Date'].dt.year.min() else '-'
-
-# Metrics in a card layout
-st.markdown(f"""
-<div class='metric-container'>
-    <div class='metric-box'>
-        <div class='metric-title'>Top Country by Value</div>
-        <div class='metric-value'>{first_country}</div>
-        <div class='metric-delta'>Difference: {first_country_delta}</div>
-    </div>
-    <div class='metric-box'>
-        <div class='metric-title'>Lowest Country by Value</div>
-        <div class='metric-value'>{last_country}</div>
-        <div class='metric-delta'>Difference: {last_country_delta}</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("<hr>", unsafe_allow_html=True)
-
-# Insights Section
-st.markdown("### Key Insights:")
-insight_1 = f"Top Country: {first_country} had the highest transaction value of {first_country_value}, reflecting its dominance in the selected trade data."
-insight_2 = f"Bottom Country: {last_country} had the lowest transaction value of {last_country_value}, indicating it contributed less to the overall trade."
-st.write(insight_1)
-st.write(insight_2)
-
-# Additional Graphs Section
+# Metrics
+st.title(f"Import-Export Analysis for {selected_year}")
 col1, col2 = st.columns(2)
 
-# Change 1: Scatter Plot for Country-wise Transaction Value
 with col1:
-    st.markdown('#### Scatter Plot: Country-wise Transaction Value')
-    scatter_plot = px.scatter(df_selected_year, x='Country', y='Value', color='Category',
-                              size='Value', title="Scatter Plot of Transaction Value by Country",
-                              color_discrete_sequence=px.colors.sequential.Viridis)
+    highest_value = df_filtered['Value'].max()
+    highest_country = df_filtered[df_filtered['Value'] == highest_value]['Country'].values[0]
+    st.metric(label="Top Country by Value", value=highest_country, delta=highest_value)
+
+with col2:
+    lowest_value = df_filtered['Value'].min()
+    lowest_country = df_filtered[df_filtered['Value'] == lowest_value]['Country'].values[0]
+    st.metric(label="Lowest Country by Value", value=lowest_country, delta=lowest_value)
+
+# Tab layout
+tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Scatter Plot", "Box Plot", "Donut & Treemap"])
+
+# Tab 1 - Overview: Line Chart
+with tab1:
+    st.subheader('Transactions Over Time')
+    line_chart = alt.Chart(df_filtered).mark_line().encode(
+        x='Date:T',
+        y='Value:Q',
+        color='Category:N',
+        tooltip=['Date:T', 'Value:Q', 'Category:N']
+    ).interactive()
+    st.altair_chart(line_chart, use_container_width=True)
+
+# Tab 2 - Scatter Plot
+with tab2:
+    st.subheader('Country-wise Transaction Value')
+    scatter_plot = px.scatter(
+        df_filtered, x='Country', y='Value', color='Category',
+        size='Value', hover_name='Country', title="Scatter Plot of Transaction Value by Country"
+    )
     st.plotly_chart(scatter_plot, use_container_width=True)
 
-# Change 2: Box Plot for Transaction Value Distribution
-with col2:
-    st.markdown('#### Box Plot: Transaction Value Distribution by Category')
-    box_plot = px.box(df_selected_year, x='Category', y='Value', color='Category',
-                      title="Transaction Value Distribution by Category",
-                      color_discrete_sequence=px.colors.sequential.Turbo)
+# Tab 3 - Box Plot
+with tab3:
+    st.subheader('Transaction Value Distribution by Category')
+    box_plot = px.box(
+        df_filtered, x='Category', y='Value', color='Category',
+        title="Box Plot of Transaction Value by Category"
+    )
     st.plotly_chart(box_plot, use_container_width=True)
 
-st.markdown("<hr>", unsafe_allow_html=True)
+# Tab 4 - Donut Chart & Treemap
+with tab4:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader('Value Distribution by Category')
+        donut_chart = px.pie(
+            df_filtered, values='Value', names='Category', hole=0.3,
+            title="Donut Chart for Value Distribution by Category"
+        )
+        st.plotly_chart(donut_chart, use_container_width=True)
+    with col2:
+        st.subheader('Category and Country Breakdown')
+        treemap_chart = px.treemap(
+            df_filtered, path=['Category', 'Country'], values='Value',
+            title="Treemap: Category and Country Breakdown"
+        )
+        st.plotly_chart(treemap_chart, use_container_width=True)
 
-# Change 3: Donut Chart for Value Distribution by Category
-st.markdown('#### Donut Chart for Value Distribution by Category')
-donut_chart = px.pie(df_selected_year, values='Value', names='Category', hole=0.4,
-                     title="Value Distribution by Category", color_discrete_sequence=px.colors.sequential.RdBu)
-st.plotly_chart(donut_chart, use_container_width=True)
+# Footer with download options
+st.sidebar.markdown("---")
+st.sidebar.subheader("Download Options")
+download_button = st.sidebar.button("Download Filtered Data as CSV")
+if download_button:
+    csv = df_filtered.to_csv(index=False).encode()
+    st.sidebar.download_button(
+        label="Download CSV",
+        data=csv,
+        file_name='filtered_data.csv',
+        mime='text/csv'
+    )
 
-# Change 4: Treemap for Country and Category Breakdown
-st.markdown('#### Treemap: Category and Country Breakdown')
-treemap_chart = px.treemap(df_selected_year, path=['Category', 'Country'], values='Value',
-                           title='Treemap: Category and Country Breakdown',
-                           color_discrete_sequence=px.colors.sequential.Plasma)
-st.plotly_chart(treemap_chart, use_container_width=True)
-
-# Change 5: Line Chart for Transactions Over Time (Remains unchanged)
-st.markdown('#### Transactions Over Time')
-line_chart = alt.Chart(df_selected_year).mark_line().encode(
-    x=alt.X('Date:T', axis=alt.Axis(title='Date')),
-    y=alt.Y('Value:Q', axis=alt.Axis(title='Transaction Value')),
-    color=alt.Color('Category:N', legend=alt.Legend(title="Category"))
-).properties(width=900, height=300)
-st.altair_chart(line_chart, use_container_width=True)
-
-# Footer
-st.markdown("<hr>", unsafe_allow_html=True)
-st.markdown("##### Created by Divyank Harjani | Import-Export Dashboard © 2024", unsafe_allow_html=True)
+st.sidebar.write("Created by Divyank Harjani | © 2024")
