@@ -23,6 +23,8 @@ st.sidebar.write("Choose your preferences below:")
 theme = st.sidebar.selectbox('Choose a Theme', ['Light', 'Dark'])
 if theme == 'Dark':
     st.markdown("<style>body {background-color: #121212; color: white;}</style>", unsafe_allow_html=True)
+else:
+    st.markdown("<style>body {background-color: black; color: white;}</style>", unsafe_allow_html=True)
 
 # Year and Country Filters
 year_list = sorted(df['Date'].dt.year.dropna().unique(), reverse=True)
